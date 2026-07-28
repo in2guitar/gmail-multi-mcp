@@ -1,0 +1,23 @@
+{
+  "name": "gmail-multi-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for multiple Google Workspace accounts across separate orgs, with verified send-as alias support",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "gmail-multi-mcp": "./src/index.js",
+    "gmail-multi-mcp-auth": "./src/auth-cli.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "auth": "node src/auth-cli.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^4.0.0"
+  }
+}
