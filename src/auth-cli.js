@@ -41,47 +41,33 @@ function arg(name) {
  * sidesteps shell quoting entirely, and keeps the client secret out of shell history.
  */
 /**
- * Terminal prompts, with a separate path for piped input.
+ * Terminal prompts, reading one line at a time.
  *
- * On a pipe, readline emits every buffered line as soon as the data arrives, so
- * questions asked after the first find their lines already consumed and discarded.
- * Draining stdin up front and serving answers from a queue avoids that, and makes
- * the flow scriptable and testable rather than TTY-only.
+ * Two failure modes to avoid, both hit during development:
+ *   - Draining stdin up front (`for await (const line of rl)`) blocks until EOF,
+ *     which never arrives in an interactive session — the script hangs with no
+ *     prompt and no listener.
+ *   - Repeated `rl.question` over a pipe loses input, because readline emits every
+ *     buffered line the moment it arrives and questions asked later find nothing.
+ *
+ * Pulling the async iterator on demand handles both: readline applies backpressure,
+ * so nothing is discarded and nothing waits for EOF. The cost is that typed input is
+ * always echoed — there is no masked entry. Values still never reach shell history,
+ * which was the point.
  */
-async function makePrompter() {
+function makePrompter() {
   const isTty = Boolean(process.stdin.isTTY);
+  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: isTty });
+  const lines = rl[Symbol.asyncIterator]();
 
-  if (!isTty) {
-    const queued = [];
-    const rl = createInterface({ input: process.stdin, terminal: false });
-    for await (const line of rl) queued.push(line);
-    return {
-      ask: async (question) => {
-        const answer = (queued.shift() ?? '').trim();
-        process.stdout.write(`${question}${answer}\n`);
-        return answer;
-      },
-      close: () => {},
-    };
-  }
-
-  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-  const plainWrite = rl._writeToOutput.bind(rl);
-
-  const ask = (question, { mask = false } = {}) =>
-    new Promise((resolve) => {
-      if (mask) {
-        // Echo the prompt itself, but replace typed characters with asterisks.
-        rl._writeToOutput = (str) => rl.output.write(str.startsWith(question) ? question : '*');
-      }
-      rl.question(question, (answer) => {
-        if (mask) {
-          rl._writeToOutput = plainWrite;
-          process.stdout.write('\n');
-        }
-        resolve(answer.trim());
-      });
-    });
+  const ask = async (question) => {
+    process.stdout.write(question);
+    const { value, done } = await lines.next();
+    if (done) throw new Error('Input ended before all values were supplied. Nothing was saved.');
+    const answer = String(value ?? '').trim();
+    if (!isTty) process.stdout.write(`${answer}\n`); // echo for logs when piped
+    return answer;
+  };
 
   return { ask, close: () => rl.close() };
 }
@@ -98,11 +84,11 @@ if (!accountKey || !clientId || !clientSecret) {
   );
   // One interface for every question — tearing one down between prompts can discard
   // input that is already buffered.
-  const p = await makePrompter();
+  const p = makePrompter();
   try {
     if (!accountKey) accountKey = await p.ask('Short account key (e.g. indelible): ');
     if (!clientId) clientId = await p.ask('Client ID (ends .apps.googleusercontent.com): ');
-    if (!clientSecret) clientSecret = await p.ask('Client secret: ', { mask: true });
+    if (!clientSecret) clientSecret = await p.ask('Client secret: ');
   } finally {
     p.close();
   }
@@ -159,6 +145,22 @@ const code = await new Promise((resolve, reject) => {
     srv.close();
     resolve(got);
   });
+
+  // Never hang silently: a stalled wait here is indistinguishable from a hung script.
+  const timeout = setTimeout(() => {
+    srv.close();
+    reject(
+      new Error(
+        `No redirect received within 5 minutes on ${REDIRECT_URI}.\n` +
+          `If the browser showed an error, that error is the real problem — not this timeout.\n` +
+          `If it showed "site can't be reached", make sure no OLD browser tab from a ` +
+          `previous attempt was reused; each run needs the freshly opened URL.`
+      )
+    );
+  }, 5 * 60 * 1000);
+  timeout.unref?.();
+
+  srv.on('close', () => clearTimeout(timeout));
 
   srv.on('error', (e) => {
     reject(
