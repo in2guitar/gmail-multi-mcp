@@ -188,9 +188,18 @@ const code = await new Promise((resolve, reject) => {
     console.log(`  ${linkFile}\n`);
     console.log(`Waiting for the redirect on ${REDIRECT_URI} ...`);
 
+    // NEVER route the URL through `cmd /c start`. cmd treats & as a command separator,
+    // so the URL is cut at the first query parameter and the browser receives only
+    // client_id — Google then rejects it with "Required parameter is missing:
+    // response_type". Quoting does not save it either, because Node's argument
+    // escaping and cmd's metacharacter layer disagree. rundll32 is exec'd directly
+    // with no shell in between, so the URL arrives intact.
     try {
       if (process.platform === 'win32') {
-        spawn('cmd', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore' }).unref();
+        spawn('rundll32', ['url.dll,FileProtocolHandler', url], {
+          detached: true,
+          stdio: 'ignore',
+        }).unref();
       } else if (process.platform === 'darwin') {
         spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
       } else {
