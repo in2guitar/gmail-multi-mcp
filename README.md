@@ -74,6 +74,10 @@ npm run auth -- --account indelible --client-id <id> --client-secret <secret>
 Credentials land in `~/.gmail-multi-mcp/accounts.json` at mode 0600. The `--account`
 value is the key you will pass as `account` in every tool call, so keep it short.
 
+This one file is deliberately kept **outside** Drive: it holds three sets of OAuth
+client secrets and non-expiring refresh tokens, and those should not sync to cloud
+storage. Everything else lives here in `_Shared Tools`.
+
 ### 3. Point Claude at it
 
 Add to `claude_desktop_config.json`:
@@ -83,7 +87,7 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "gmail-multi": {
       "command": "node",
-      "args": ["C:\\Users\\kevin\\src\\gmail-multi-mcp\\src\\index.js"]
+      "args": ["H:\\My Drive\\_Shared Tools\\gmail-multi-mcp\\src\\index.js"]
     }
   }
 }

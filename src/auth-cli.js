@@ -10,7 +10,10 @@
 
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import { SCOPES, STORE_PATH, saveAccounts } from './oauth.js';
 
@@ -77,11 +80,43 @@ const code = await new Promise((resolve, reject) => {
     resolve(got);
   });
 
-  srv.on('error', reject);
-  srv.listen(PORT, '127.0.0.1', () => {
-    console.log(`\nOpen this URL in a browser signed in as the account you are adding:\n`);
-    console.log(authUrl.toString());
-    console.log(`\nWaiting for the redirect on ${REDIRECT_URI} ...`);
+  srv.on('error', (e) => {
+    reject(
+      e.code === 'EADDRINUSE'
+        ? new Error(
+            `Port ${PORT} is already in use. Close whatever is using it, or set ` +
+              `GMAIL_MULTI_AUTH_PORT to a free port and add that redirect URI if your ` +
+              `client is a Web application type.`
+          )
+        : e
+    );
+  });
+
+  srv.listen(PORT, '127.0.0.1', async () => {
+    const url = authUrl.toString();
+
+    // The URL is long enough to wrap in a terminal, and a half-copied URL is the most
+    // common reason this step fails. So open it directly and leave a file as a fallback
+    // rather than relying on copy-paste.
+    const linkFile = join(tmpdir(), 'gmail-multi-mcp-auth-url.txt');
+    await writeFile(linkFile, url, 'utf8').catch(() => {});
+
+    console.log(`\nOpening your browser. Sign in as the account you are adding.\n`);
+    console.log(`If it does not open, the URL is saved as a single line here:`);
+    console.log(`  ${linkFile}\n`);
+    console.log(`Waiting for the redirect on ${REDIRECT_URI} ...`);
+
+    try {
+      if (process.platform === 'win32') {
+        spawn('cmd', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore' }).unref();
+      } else if (process.platform === 'darwin') {
+        spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+      } else {
+        spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
+      }
+    } catch {
+      console.log('\n(Could not launch a browser automatically — open the file above.)');
+    }
   });
 });
 
