@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 // One-time authorization flow. Run once per account.
 //
-// Usage:
-//   npm run auth -- --account indelible --client-id <id> --client-secret <secret>
+// Usage — run it with no arguments and answer the prompts:
+//   node src/auth-cli.js
+//
+// Flags also work for non-interactive use, but call node directly, NOT
+// `npm run auth --`: npm's PowerShell shim strips flag names and forwards only
+// their values, so the script sees positional junk and bails.
+//   node src/auth-cli.js --account indelible --client-id <id> --client-secret <secret>
 //
 // Each Workspace org needs its own OAuth client, created as an Internal app in that
 // org's GCP project, with http://127.0.0.1:<port> as an authorized redirect URI.
 // Internal apps skip Google verification and issue refresh tokens that do not expire.
 
 import { createServer } from 'node:http';
+import { createInterface } from 'node:readline';
 import { randomBytes } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -28,15 +34,89 @@ function arg(name) {
   return i !== -1 ? process.argv[i + 1] : undefined;
 }
 
-const accountKey = arg('account');
-const clientId = arg('client-id');
-const clientSecret = arg('client-secret');
+/**
+ * Prompt on the terminal. Anything missing from argv is asked for here rather than
+ * required as a flag: npm's PowerShell shim strips flag NAMES and forwards only their
+ * values, so `npm run auth -- --account x` arrives as `auth-cli.js x`. Prompting
+ * sidesteps shell quoting entirely, and keeps the client secret out of shell history.
+ */
+/**
+ * Terminal prompts, with a separate path for piped input.
+ *
+ * On a pipe, readline emits every buffered line as soon as the data arrives, so
+ * questions asked after the first find their lines already consumed and discarded.
+ * Draining stdin up front and serving answers from a queue avoids that, and makes
+ * the flow scriptable and testable rather than TTY-only.
+ */
+async function makePrompter() {
+  const isTty = Boolean(process.stdin.isTTY);
+
+  if (!isTty) {
+    const queued = [];
+    const rl = createInterface({ input: process.stdin, terminal: false });
+    for await (const line of rl) queued.push(line);
+    return {
+      ask: async (question) => {
+        const answer = (queued.shift() ?? '').trim();
+        process.stdout.write(`${question}${answer}\n`);
+        return answer;
+      },
+      close: () => {},
+    };
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+  const plainWrite = rl._writeToOutput.bind(rl);
+
+  const ask = (question, { mask = false } = {}) =>
+    new Promise((resolve) => {
+      if (mask) {
+        // Echo the prompt itself, but replace typed characters with asterisks.
+        rl._writeToOutput = (str) => rl.output.write(str.startsWith(question) ? question : '*');
+      }
+      rl.question(question, (answer) => {
+        if (mask) {
+          rl._writeToOutput = plainWrite;
+          process.stdout.write('\n');
+        }
+        resolve(answer.trim());
+      });
+    });
+
+  return { ask, close: () => rl.close() };
+}
+
+let accountKey = arg('account');
+let clientId = arg('client-id');
+let clientSecret = arg('client-secret');
 
 if (!accountKey || !clientId || !clientSecret) {
+  console.log(
+    `\nAuthorizing a Google Workspace account for gmail-multi-mcp.\n` +
+      `Create the OAuth client first: Internal app, Desktop type.\n` +
+      `Values are read from this prompt, so nothing lands in shell history.\n`
+  );
+  // One interface for every question — tearing one down between prompts can discard
+  // input that is already buffered.
+  const p = await makePrompter();
+  try {
+    if (!accountKey) accountKey = await p.ask('Short account key (e.g. indelible): ');
+    if (!clientId) clientId = await p.ask('Client ID (ends .apps.googleusercontent.com): ');
+    if (!clientSecret) clientSecret = await p.ask('Client secret: ', { mask: true });
+  } finally {
+    p.close();
+  }
+}
+
+if (!accountKey || !clientId || !clientSecret) {
+  console.error('\nAll three values are required. Nothing was saved.');
+  process.exit(1);
+}
+
+if (!clientId.endsWith('.apps.googleusercontent.com')) {
   console.error(
-    'Usage: npm run auth -- --account <name> --client-id <id> --client-secret <secret>\n\n' +
-      `Add ${REDIRECT_URI} as an authorized redirect URI on the OAuth client first.\n` +
-      '(Override the port with GMAIL_MULTI_AUTH_PORT.)'
+    `\nThat client ID looks wrong — it should end in ".apps.googleusercontent.com".\n` +
+      `Got: ${clientId}\nNothing was saved.`
   );
   process.exit(1);
 }

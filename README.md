@@ -65,10 +65,18 @@ For each one, signed in as an admin of that domain:
 
 ### 2. Authorize each account
 
-Run once per account, in a browser signed in as that account:
+Run once per account. It prompts for the three values and opens your browser:
 
 ```bash
-npm run auth -- --account indelible --client-id <id> --client-secret <secret>
+npm run auth
+```
+
+⚠️ Do **not** use `npm run auth -- --account x --client-id y`. npm's PowerShell shim
+strips flag *names* and forwards only their values, so the script receives positional
+junk and exits. For non-interactive use, call node directly — that passes flags intact:
+
+```bash
+node src/auth-cli.js --account indelible --client-id <id> --client-secret <secret>
 ```
 
 Credentials land in `~/.gmail-multi-mcp/accounts.json` at mode 0600. The `--account`
