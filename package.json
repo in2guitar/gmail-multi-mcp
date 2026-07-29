@@ -11,7 +11,8 @@
   "scripts": {
     "start": "node src/index.js",
     "auth": "node src/auth-cli.js",
-    "test": "node --test"
+    "test": "node --test test/mime.test.js",
+    "build": "node build.mjs"
   },
   "engines": {
     "node": ">=20"

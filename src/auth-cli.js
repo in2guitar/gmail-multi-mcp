@@ -25,7 +25,10 @@ import { SCOPES, STORE_PATH, saveAccounts } from './oauth.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
+// Ask Gmail who this is, NOT the oauth2 userinfo endpoint: userinfo needs the
+// userinfo.email/openid scope, which we deliberately do not request, so it returns
+// nothing and leaves the account record without an email.
+const PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profile';
 const PORT = Number(process.env.GMAIL_MULTI_AUTH_PORT || 8765);
 const REDIRECT_URI = `http://127.0.0.1:${PORT}`;
 
@@ -233,9 +236,16 @@ if (!tokens.refresh_token) {
   );
 }
 
-const who = await fetch(USERINFO_URL, {
+const profileRes = await fetch(PROFILE_URL, {
   headers: { Authorization: `Bearer ${tokens.access_token}` },
-}).then((r) => r.json());
+});
+const who = await profileRes.json().catch(() => ({}));
+if (!profileRes.ok || !who.emailAddress) {
+  throw new Error(
+    `Authorized, but could not read the mailbox address: ` +
+      `${who?.error?.message || `HTTP ${profileRes.status}`}. Nothing was saved.`
+  );
+}
 
 let existing = {};
 try {
@@ -245,12 +255,12 @@ try {
 }
 
 existing[accountKey] = {
-  email: who.email,
+  email: who.emailAddress,
   client_id: clientId,
   client_secret: clientSecret,
   refresh_token: tokens.refresh_token,
 };
 await saveAccounts(existing);
 
-console.log(`\nSaved account "${accountKey}" (${who.email}) to ${STORE_PATH}`);
+console.log(`\nSaved account "${accountKey}" (${who.emailAddress}) to ${STORE_PATH}`);
 console.log(`Configured accounts: ${Object.keys(existing).join(', ')}`);

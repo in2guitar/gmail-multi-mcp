@@ -88,20 +88,41 @@ storage. Everything else lives here in `_Shared Tools`.
 
 ### 3. Point Claude at it
 
-Add to `claude_desktop_config.json`:
+Claude runs the **bundle**, not `src/index.js` — see [Why a bundle](#why-a-bundle).
 
 ```json
 {
   "mcpServers": {
     "gmail-multi": {
       "command": "node",
-      "args": ["H:\\My Drive\\_Shared Tools\\gmail-multi-mcp\\src\\index.js"]
+      "args": ["H:\\My Drive\\_Shared Tools\\gmail-multi-mcp\\gmail-multi-mcp.mjs"]
     }
   }
 }
 ```
 
 To enable sending, add `"env": { "GMAIL_MULTI_ALLOW_SEND": "1" }`.
+
+## Why a bundle
+
+This project lives in Google Drive, and Drive cannot host `node_modules`. Syncing
+~3,500 dependency files truncated `@modelcontextprotocol/sdk/package.json` to 0 bytes,
+which surfaced as a misleading `Invalid package config` at startup. Drive also refuses
+directory junctions (`Incorrect function`), so `node_modules` cannot be redirected off
+the volume either.
+
+So dependencies are installed on local disk, bundled into a single file, and only that
+file is written back to Drive. It needs nothing but Node to run, and there is no
+dependency tree left for sync to corrupt.
+
+After changing anything under `src/`:
+
+```bash
+npm run build
+```
+
+then restart Claude Desktop. `src/auth-cli.js` is not bundled — it imports only Node
+built-ins, so it runs from Drive as-is.
 
 ### Cloud routines
 
