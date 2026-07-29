@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "gmail-multi": {
+      "command": "node",
+      "args": ["gmail-multi-mcp.mjs"]
+    }
+  }
+}
