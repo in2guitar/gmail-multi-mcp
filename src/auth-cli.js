@@ -7,7 +7,7 @@
 // Flags also work for non-interactive use, but call node directly, NOT
 // `npm run auth --`: npm's PowerShell shim strips flag names and forwards only
 // their values, so the script sees positional junk and bails.
-//   node src/auth-cli.js --account indelible --client-id <id> --client-secret <secret>
+//   node src/auth-cli.js --account work --client-id <id> --client-secret <secret>
 //
 // Each Workspace org needs its own OAuth client, created as an Internal app in that
 // org's GCP project, with http://127.0.0.1:<port> as an authorized redirect URI.
@@ -38,13 +38,12 @@ function arg(name) {
 }
 
 /**
- * Prompt on the terminal. Anything missing from argv is asked for here rather than
- * required as a flag: npm's PowerShell shim strips flag NAMES and forwards only their
- * values, so `npm run auth -- --account x` arrives as `auth-cli.js x`. Prompting
- * sidesteps shell quoting entirely, and keeps the client secret out of shell history.
- */
-/**
  * Terminal prompts, reading one line at a time.
+ *
+ * Anything missing from argv is asked for here rather than required as a flag: npm's
+ * PowerShell shim strips flag NAMES and forwards only their values, so
+ * `npm run auth -- --account x` arrives as `auth-cli.js x`. Prompting sidesteps shell
+ * quoting entirely, and keeps the client secret out of shell history.
  *
  * Two failure modes to avoid, both hit during development:
  *   - Draining stdin up front (`for await (const line of rl)`) blocks until EOF,
@@ -89,7 +88,7 @@ if (!accountKey || !clientId || !clientSecret) {
   // input that is already buffered.
   const p = makePrompter();
   try {
-    if (!accountKey) accountKey = await p.ask('Short account key (e.g. indelible): ');
+    if (!accountKey) accountKey = await p.ask('Short account key (e.g. work): ');
     if (!clientId) clientId = await p.ask('Client ID (ends .apps.googleusercontent.com): ');
     if (!clientSecret) clientSecret = await p.ask('Client secret: ');
   } finally {

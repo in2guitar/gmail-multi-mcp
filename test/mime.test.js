@@ -34,19 +34,19 @@ test('b64url uses RFC 4648 §5 alphabet and strips padding', () => {
 });
 
 test('b64url round-trips non-ASCII content', () => {
-  const original = 'Kevin — café ☕ 日本語';
+  const original = 'Ann — café ☕ 日本語';
   assert.equal(b64urlDecode(b64url(original)).toString('utf8'), original);
 });
 
 test('plain-text message is single-part with a decodable body', () => {
   const raw = buildMime({
-    from: 'kevin@indelible.vc',
+    from: 'sender@example.com',
     to: ['someone@example.com'],
     subject: 'Hello',
     text: 'Body text here',
   });
   assert.match(header(raw, 'Content-Type'), /^text\/plain/);
-  assert.equal(header(raw, 'From'), 'kevin@indelible.vc');
+  assert.equal(header(raw, 'From'), 'sender@example.com');
   assert.equal(header(raw, 'To'), 'someone@example.com');
   assert.equal(header(raw, 'Subject'), 'Hello');
   assert.equal(header(raw, 'Content-Transfer-Encoding'), 'base64');
@@ -55,7 +55,7 @@ test('plain-text message is single-part with a decodable body', () => {
 
 test('text + html becomes multipart/alternative containing both', () => {
   const raw = buildMime({
-    from: 'kevin@indelible.vc',
+    from: 'sender@example.com',
     to: ['a@example.com'],
     subject: 'Both',
     text: 'plain version',
@@ -82,7 +82,7 @@ test('text + html becomes multipart/alternative containing both', () => {
 
 test('attachments wrap the body in multipart/mixed', () => {
   const raw = buildMime({
-    from: 'kevin@indelible.vc',
+    from: 'sender@example.com',
     to: ['a@example.com'],
     subject: 'With file',
     text: 'see attached',
@@ -124,7 +124,7 @@ test('threading headers survive into the built message', () => {
 });
 
 test('display names are quoted and encoded correctly', () => {
-  assert.equal(formatAddress({ name: 'Kevin', email: 'k@x.com' }), 'Kevin <k@x.com>');
+  assert.equal(formatAddress({ name: 'Ann', email: 'a@x.com' }), 'Ann <a@x.com>');
   assert.equal(formatAddress('k@x.com'), 'k@x.com');
   assert.match(formatAddress({ name: 'Café', email: 'k@x.com' }), /^=\?UTF-8\?B\?.+\?= <k@x\.com>$/);
 });

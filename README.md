@@ -76,7 +76,7 @@ strips flag *names* and forwards only their values, so the script receives posit
 junk and exits. For non-interactive use, call node directly — that passes flags intact:
 
 ```bash
-node src/auth-cli.js --account indelible --client-id <id> --client-secret <secret>
+node src/auth-cli.js --account work --client-id <id> --client-secret <secret>
 ```
 
 Credentials land in `~/.gmail-multi-mcp/accounts.json` at mode 0600. The `--account`
