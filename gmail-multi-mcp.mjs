@@ -31223,12 +31223,20 @@ function splitAddresses(value) {
 var BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 var sendAsCache = /* @__PURE__ */ new Map();
 var SEND_AS_TTL_MS = 10 * 60 * 1e3;
+function applyQuery(url2, query) {
+  for (const [k, v] of Object.entries(query ?? {})) {
+    if (v === void 0 || v === null || v === "") continue;
+    if (Array.isArray(v)) {
+      for (const item of v) url2.searchParams.append(k, String(item));
+    } else {
+      url2.searchParams.set(k, String(v));
+    }
+  }
+  return url2;
+}
 async function gapi(ctx, path, { method = "GET", query, body } = {}) {
   const token = await getAccessToken(ctx.accounts, ctx.key);
-  const url2 = new URL(BASE + path);
-  for (const [k, v] of Object.entries(query ?? {})) {
-    if (v !== void 0 && v !== null && v !== "") url2.searchParams.set(k, String(v));
-  }
+  const url2 = applyQuery(new URL(BASE + path), query);
   const res = await fetch(url2, {
     method,
     headers: {

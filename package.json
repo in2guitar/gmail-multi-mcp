@@ -11,7 +11,7 @@
   "scripts": {
     "start": "node src/index.js",
     "auth": "node src/auth-cli.js",
-    "test": "node --test test/mime.test.js",
+    "test": "node --test test/mime.test.js test/query.test.js",
     "build": "node build.mjs",
     "export-env": "node export-env.mjs"
   },

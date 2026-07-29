@@ -19,12 +19,30 @@ const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const sendAsCache = new Map();
 const SEND_AS_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * Apply query parameters to a URL.
+ *
+ * Array values are repeated rather than joined. Gmail expects
+ * `?metadataHeaders=From&metadataHeaders=Subject`; collapsing them into one
+ * comma-separated value matches no header at all, and the request still returns 200 —
+ * it just comes back with no headers, so subject and date silently read as null.
+ * Exported so that behaviour stays pinned by a test.
+ */
+export function applyQuery(url, query) {
+  for (const [k, v] of Object.entries(query ?? {})) {
+    if (v === undefined || v === null || v === '') continue;
+    if (Array.isArray(v)) {
+      for (const item of v) url.searchParams.append(k, String(item));
+    } else {
+      url.searchParams.set(k, String(v));
+    }
+  }
+  return url;
+}
+
 async function gapi(ctx, path, { method = 'GET', query, body } = {}) {
   const token = await getAccessToken(ctx.accounts, ctx.key);
-  const url = new URL(BASE + path);
-  for (const [k, v] of Object.entries(query ?? {})) {
-    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
-  }
+  const url = applyQuery(new URL(BASE + path), query);
 
   const res = await fetch(url, {
     method,
