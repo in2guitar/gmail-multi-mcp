@@ -24,7 +24,9 @@ try {
 }
 
 const accounts = JSON.parse(raw);
-const b64 = Buffer.from(raw, 'utf8').toString('base64');
+// Cloud environments take .env format: one KEY=value per line, unquoted — quotes are
+// stored as part of the value. So emit the whole line, ready to paste as-is.
+const b64 = `GMAIL_MULTI_ACCOUNTS=${Buffer.from(raw, 'utf8').toString('base64')}`;
 
 const clip =
   process.platform === 'win32'
@@ -37,8 +39,10 @@ console.log(`Accounts: ${Object.keys(accounts).join(', ')}`);
 console.log(`Encoded ${b64.length} characters.`);
 
 if (clip.status === 0) {
-  console.log('\nCopied to clipboard. Paste it as the value of GMAIL_MULTI_ACCOUNTS');
-  console.log('on your cloud environment at claude.ai/code.');
+  console.log('\nCopied to clipboard as a complete .env line:');
+  console.log('  GMAIL_MULTI_ACCOUNTS=<base64>');
+  console.log('\nPaste it into the Environment variables box of your cloud environment,');
+  console.log('on its own line. Do not add quotes — they become part of the value.');
 } else {
   console.error('\nCould not reach the clipboard. Writing to a file instead:');
   const out = join(homedir(), '.gmail-multi-mcp', 'cloud-env-value.txt');
