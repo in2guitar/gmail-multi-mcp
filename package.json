@@ -12,7 +12,8 @@
     "start": "node src/index.js",
     "auth": "node src/auth-cli.js",
     "test": "node --test test/mime.test.js",
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "export-env": "node export-env.mjs"
   },
   "engines": {
     "node": ">=20"
