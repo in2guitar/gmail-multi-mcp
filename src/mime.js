@@ -86,6 +86,29 @@ function multipart(subtype, parts) {
  * keep a reply in its thread — In-Reply-To and References must be present and the
  * subject must stay consistent, or Gmail forks a new thread.
  */
+/**
+ * Turn a plain-text body into the HTML alternative Gmail needs.
+ *
+ * A message with ONLY a text/plain part opens in Gmail's plain-text compose mode, and
+ * Gmail hard-wraps every line at ~70 characters when it is sent from there. The draft
+ * looks fine in the compose window; the recipient gets a chopped, short-line email
+ * that reads as automated. That happened to every cold email sent on 2026-10-09.
+ * So buildMime never emits a text-only body: when the caller gives no html, this
+ * builds one. Blank lines separate paragraphs; a single newline is kept as <br>
+ * (sign-offs, addresses). URLs become links.
+ */
+export function textToHtml(text) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const link = (s) => s.replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, (u) => `<a href="${u}">${u}</a>`);
+  return String(text)
+    .replace(/\r\n?/g, '\n')
+    .split(/\n[ \t]*\n+/)
+    .map((para) => para.replace(/^\n+|\n+$/g, ''))
+    .filter((para) => para !== '')
+    .map((para) => `<div>${para.split('\n').map((line) => link(esc(line))).join('<br>')}</div>`)
+    .join('<div><br></div>');
+}
+
 export function buildMime({
   from,
   to,
@@ -112,6 +135,8 @@ export function buildMime({
 
   // An empty body is legal; default to empty text so we always emit a valid part.
   const hasText = text != null && text !== '';
+  // Never text-only: see textToHtml for why a missing html part is a defect.
+  if (hasText && (html == null || html === '')) html = textToHtml(text);
   const hasHtml = html != null && html !== '';
 
   let contentType;
