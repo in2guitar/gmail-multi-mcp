@@ -9,6 +9,7 @@ import {
   formatAddress,
   headerValue,
   splitAddresses,
+  textToHtml,
 } from '../src/mime.js';
 
 /** Pull a header out of a built MIME string. */
@@ -38,19 +39,40 @@ test('b64url round-trips non-ASCII content', () => {
   assert.equal(b64urlDecode(b64url(original)).toString('utf8'), original);
 });
 
-test('plain-text message is single-part with a decodable body', () => {
+test('text-only input still gets an html alternative, so Gmail never hard-wraps it on send', () => {
   const raw = buildMime({
     from: 'sender@example.com',
     to: ['someone@example.com'],
     subject: 'Hello',
     text: 'Body text here',
   });
-  assert.match(header(raw, 'Content-Type'), /^text\/plain/);
+  assert.match(header(raw, 'Content-Type'), /^multipart\/alternative/);
   assert.equal(header(raw, 'From'), 'sender@example.com');
   assert.equal(header(raw, 'To'), 'someone@example.com');
   assert.equal(header(raw, 'Subject'), 'Hello');
-  assert.equal(header(raw, 'Content-Transfer-Encoding'), 'base64');
-  assert.equal(Buffer.from(bodyOf(raw), 'base64').toString('utf8'), 'Body text here');
+  assert.match(raw, /Content-Type: text\/plain/);
+  assert.match(raw, /Content-Type: text\/html/);
+});
+
+test('textToHtml: paragraphs, line breaks, escaping and links', () => {
+  const html = textToHtml(
+    'Owen,\r\n\r\nA long paragraph on one line, with <angle> & ampersand.\n\nBook: https://abax.fund/book-consultation.\n\nKevin\nkevin@abax.fund',
+  );
+  assert.equal(
+    html,
+    '<div>Owen,</div><div><br></div>' +
+      '<div>A long paragraph on one line, with &lt;angle&gt; &amp; ampersand.</div><div><br></div>' +
+      '<div>Book: <a href="https://abax.fund/book-consultation">https://abax.fund/book-consultation</a>.</div><div><br></div>' +
+      '<div>Kevin<br>kevin@abax.fund</div>',
+  );
+});
+
+test('an explicit html body is used as given, not regenerated', () => {
+  const raw = buildMime({ to: ['a@b.c'], subject: 's', text: 'plain', html: '<p><b>rich</b></p>' });
+  assert.match(raw, /Content-Type: text\/html/);
+  const htmlPart = raw.split(/--[^\r\n]+\r\n/).find((x) => /^Content-Type: text\/html/.test(x));
+  const b64 = htmlPart.split('\r\n\r\n')[1].replace(/\r\n(--.*)?$/s, '');
+  assert.equal(Buffer.from(b64, 'base64').toString('utf8'), '<p><b>rich</b></p>');
 });
 
 test('text + html becomes multipart/alternative containing both', () => {

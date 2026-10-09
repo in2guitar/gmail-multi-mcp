@@ -289,7 +289,9 @@ export async function updateDraft(ctx, { draftId, ...changes }) {
     bcc: changes.bcc ?? splitAddresses(headerValue(p, 'Bcc')),
     subject: changes.subject ?? headerValue(p, 'Subject') ?? '',
     text: changes.text ?? bodies.text,
-    html: changes.html ?? bodies.html,
+    // New text with no new html: drop the old html so buildMime regenerates it from
+    // the new text. Keeping it would leave the two parts saying different things.
+    html: changes.html ?? (changes.text != null ? null : bodies.html),
     attachments: changes.attachments ?? [],
     // Preserved verbatim — regenerating these would break the thread linkage.
     inReplyTo: headerValue(p, 'In-Reply-To'),
